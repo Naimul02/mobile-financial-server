@@ -33,7 +33,9 @@ async function run() {
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
 
     const createUserCollection = client.db('mobileFinancial').collection("users")
-    const sendMoneyInfoCollection = client.db('mobileFinancial').collection("sendMoneyInfo")
+    const sendMoneyInfoCollection = client.db('mobileFinancial').collection("sendMoneyInfo");
+    const sendMoneyCollection = client.db('mobileFinancial').collection("sendMoney");
+    
 
 
     // JWT related api
@@ -44,6 +46,23 @@ async function run() {
                 })
                 res.send({token})
         })
+        // middleware
+        const verifyToken = (req , res , next) => {
+            // console.log('inside verify token' , req.headers.authorization);
+            if(!req.headers.authorization){
+                return res.status(401).send({message : 'forbidden access'})
+            }
+            const token = req.headers.authorization.split(" ")[1];
+            
+            jwt.verify(token , process.env.TOKEN_SECRET , (err , decoded) => {
+                if(err){
+                     return res.status(401).send({message : 'forbidden access'})
+                }
+
+                req.decoded = decoded;
+                next();
+            })
+        }
 
 
     // user related api
@@ -55,7 +74,8 @@ async function run() {
             res.send(result);
             
     } )
-    app.get('/balance' , async(req , res) => {
+    app.get('/balance' ,verifyToken, async(req , res) => {
+        // console.log("headers" , req.headers)
         const email = req.query.email;
         const query = {email : email};
         const result = await createUserCollection.findOne(query);
@@ -125,12 +145,52 @@ async function run() {
             }
     })
     // send money
-    app.get('/haveNumber/:number' , async(req , res) => {
-      // TODO:
+    app.get('/haveNumber/:number' ,verifyToken, async(req , res) => {
+      
         const number = req.params.number;
-        const query = {number}
+        console.log(number)
+        const query = {number : number}
+        const result = await createUserCollection.findOne(query);
+        console.log("send money number " , result);
+
+
+        res.send(result);
     })
-    app.post('/sendMoneyInfo' , async(req , res) => {
+    app.post('/sendMoney/:number' ,verifyToken, async(req , res) => {
+        const number = req.params.number;
+        console.log('number' , number)
+        const amount = req.query.amount;
+        const info ={
+            number : number,
+            balance : amount
+        }
+        const result = await createUserCollection.insertOne(info);
+        res.send(result);
+
+    })
+    app.patch('/sendMoney/:number' ,verifyToken, async(req , res) => {
+        const number = req.params.number;
+        const amount = parseInt(req.query.amount);
+
+        const filter = {number : number};
+        const result = await createUserCollection.findOne(filter);
+
+        const preAmount = parseInt(result.balance);
+        const newAmount = preAmount + amount;
+
+        console.log('amount' , amount , 'number' , number , 'result' ,result , 'preAmount' , preAmount , 'newAmount' , newAmount)
+
+        const updateDoc ={
+            $set : {
+                balance : newAmount
+            }
+        }
+        const result1 = await createUserCollection.updateOne(filter , updateDoc);
+        res.send(result1)
+
+        
+    })
+    app.post('/sendMoneyInfo' ,verifyToken, async(req , res) => {
         const info = req.body;
         const result = await sendMoneyInfoCollection.insertOne(info);
         res.send(result);
@@ -142,7 +202,7 @@ async function run() {
         const result = await sendMoneyInfoCollection.findOne(query);
         res.send(result);
     })
-    app.get('/pinMatch/:email/:pin', async(req ,res) => {
+    app.get('/pinMatch/:email/:pin',verifyToken, async(req ,res) => {
       const infoEmail = req.params.email;
       const infoPin = req.params.pin
 
