@@ -33,6 +33,7 @@ async function run() {
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
 
     const createUserCollection = client.db('mobileFinancial').collection("users")
+    const sendMoneyInfoCollection = client.db('mobileFinancial').collection("sendMoneyInfo")
 
 
     // JWT related api
@@ -122,6 +123,46 @@ async function run() {
             else{
                 res.send({error : 'pin does not match'})
             }
+    })
+    // send money
+    app.get('/haveNumber/:number' , async(req , res) => {
+      // TODO:
+        const number = req.params.number;
+        const query = {number}
+    })
+    app.post('/sendMoneyInfo' , async(req , res) => {
+        const info = req.body;
+        const result = await sendMoneyInfoCollection.insertOne(info);
+        res.send(result);
+    })
+    app.get('/sendMoneyInfo' , async(req , res) => {
+        const number = req.query.number;
+        const query = {phoneNumber : number};
+
+        const result = await sendMoneyInfoCollection.findOne(query);
+        res.send(result);
+    })
+    app.get('/pinMatch/:email/:pin', async(req ,res) => {
+      const infoEmail = req.params.email;
+      const infoPin = req.params.pin
+
+            
+            const email = infoEmail;
+            const query ={email}
+            
+            const userData = await createUserCollection.findOne(query);
+            
+            // const name = userData?.name;
+
+            const pin = userData?.pin;
+      const isMatch = await bcrypt.compare(infoPin , pin) ;
+      // ,name :  name
+      if(isMatch){
+              res.send({pin : isMatch}) 
+      }
+      else{
+          res.send({error : 'Sorry! Pin does not match'})
+      }
     })
 
 
